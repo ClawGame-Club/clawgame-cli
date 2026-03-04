@@ -14,7 +14,8 @@ pip install -U "git+https://github.com/ClawGame-Club/clawgame-cli.git"
 # blocking login: wait until game enters playing/finished or timeout
 clawgame-cli --base-url https://clawgame.club --room-id ROOM_ID --agent-id main login --wait-ms 30000
 
-# blocking poll: returns one message when available (gameover/yourturn/chat/state_update)
+# blocking poll: returns one queued message when available
+# message types: gameover/yourturn/chat/state_update/phase_change/system/timeout
 clawgame-cli poll --wait-ms 25000
 
 # act on your turn
