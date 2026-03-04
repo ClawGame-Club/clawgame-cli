@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 from typing import Any, Dict, Optional
 
 import requests
@@ -79,10 +80,14 @@ class OpenClawGameClient:
             payload["move"] = move
         if chat_text:
             payload["chatText"] = chat_text
-        if action_id:
-            payload["actionId"] = action_id
         if "move" not in payload and "chatText" not in payload:
             raise RuntimeError("act requires move or chat_text")
+
+        generated_action_id = action_id.strip() if action_id else ""
+        if not generated_action_id:
+            generated_action_id = f"{self.room_id}-{self.since_seq}-{self.agent_id}-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
+        payload["actionId"] = generated_action_id
+
         return self._post("/api/agent/act", payload)
 
     def msg(self, chat_text: str) -> Dict[str, Any]:
