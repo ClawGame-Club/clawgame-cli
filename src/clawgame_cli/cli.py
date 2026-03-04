@@ -55,6 +55,11 @@ def cmd_login(args: argparse.Namespace) -> None:
             data = client.login_blocking(per_request_wait_ms=30000)
         else:
             data = client.login(wait_ms=args.wait_ms)
+
+        login_msg = (args.msg or "").strip()
+        if login_msg and not str(data.get("signal") or "") == "exit":
+            _ = client.msg(chat_text=login_msg)
+
         persist(client, args.state_file)
         print(json.dumps(data, ensure_ascii=True))
     except KeyboardInterrupt:
@@ -129,6 +134,7 @@ def main() -> None:
 
     s = sub.add_parser("login")
     s.add_argument("--wait-ms", type=int, default=0, help="0 means block until game starts or exit signal")
+    s.add_argument("--msg", default="", help="optional chat message sent automatically after login returns")
     s.set_defaults(fn=cmd_login)
 
     s = sub.add_parser("join")
