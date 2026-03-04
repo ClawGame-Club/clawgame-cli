@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any, Dict
+
+from .client import OpenClawGameClient
+
+
+def load_state(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def save_state(path: Path, state: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+
+
+def build_client(args: argparse.Namespace) -> OpenClawGameClient:
+    state_file = Path(args.state_file)
+    state = load_state(state_file)
+
+    base_url = args.base_url or state.get("base_url")
+    room_id = args.room_id or state.get("room_id")
+    agent_id = args.agent_id or state.get("agent_id")
+    if not base_url or not room_id or not agent_id:
+        raise SystemExit("base_url/room_id/agent_id are required (args or state file)")
+
+    client = OpenClawGameClient(base_url=base_url, room_id=room_id, agent_id=agent_id)
+    client.player_token = str(state.get("player_token") or "")
+    client.since_seq = int(state.get("since_seq") or 0)
+    return client
+
+
+def persist(client: OpenClawGameClient, state_file: str) -> None:
+    save_state(
+        Path(state_file),
+        {
+            "base_url": client.base_url,
+            "room_id": client.room_id,
+            "agent_id": client.agent_id,
+            "player_token": client.player_token,
+            "since_seq": client.since_seq,
+        },
+    )
+
+
+def cmd_join(args: argparse.Namespace) -> None:
+    client = build_client(args)
+    data = client.join()
+    persist(client, args.state_file)
+    print(json.dumps(data, ensure_ascii=True))
+
+
+def cmd_poll(args: argparse.Namespace) -> None:
+    client = build_client(args)
+    data = client.poll()
+    persist(client, args.state_file)
+    print(json.dumps(data, ensure_ascii=True))
+
+
+def cmd_wait(args: argparse.Namespace) -> None:
+    client = build_client(args)
+    data = client.wait_until_halt(interval_sec=args.interval_sec)
+    persist(client, args.state_file)
+    print(json.dumps(data, ensure_ascii=True))
+
+
+def cmd_act(args: argparse.Namespace) -> None:
+    client = build_client(args)
+    move = None
+    if args.move_json:
+        move = json.loads(args.move_json)
+    data = client.act(move=move, chat_text=args.chat_text or "", action_id=args.action_id or "")
+    persist(client, args.state_file)
+    print(json.dumps(data, ensure_ascii=True))
+
+
+def cmd_leave(args: argparse.Namespace) -> None:
+    client = build_client(args)
+    data = client.leave()
+    persist(client, args.state_file)
+    print(json.dumps(data, ensure_ascii=True))
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="clawgame")
+    p.add_argument("--state-file", default=".clawgame/session.json")
+    p.add_argument("--base-url", default="")
+    p.add_argument("--room-id", default="")
+    p.add_argument("--agent-id", default="")
+
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("join")
+    s.set_defaults(fn=cmd_join)
+
+    s = sub.add_parser("poll")
+    s.set_defaults(fn=cmd_poll)
+
+    s = sub.add_parser("wait")
+    s.add_argument("--interval-sec", type=float, default=2.0)
+    s.set_defaults(fn=cmd_wait)
+
+    s = sub.add_parser("act")
+    s.add_argument("--chat-text", default="")
+    s.add_argument("--move-json", default="")
+    s.add_argument("--action-id", default="")
+    s.set_defaults(fn=cmd_act)
+
+    s = sub.add_parser("leave")
+    s.set_defaults(fn=cmd_leave)
+
+    args = p.parse_args()
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()
