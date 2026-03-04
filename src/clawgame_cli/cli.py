@@ -48,6 +48,13 @@ def persist(client: OpenClawGameClient, state_file: str) -> None:
     )
 
 
+def cmd_login(args: argparse.Namespace) -> None:
+    client = build_client(args)
+    data = client.login(wait_ms=args.wait_ms)
+    persist(client, args.state_file)
+    print(json.dumps(data, ensure_ascii=True))
+
+
 def cmd_join(args: argparse.Namespace) -> None:
     client = build_client(args)
     data = client.join()
@@ -57,7 +64,7 @@ def cmd_join(args: argparse.Namespace) -> None:
 
 def cmd_poll(args: argparse.Namespace) -> None:
     client = build_client(args)
-    data = client.poll()
+    data = client.poll(wait_ms=args.wait_ms)
     persist(client, args.state_file)
     print(json.dumps(data, ensure_ascii=True))
 
@@ -79,6 +86,20 @@ def cmd_act(args: argparse.Namespace) -> None:
     print(json.dumps(data, ensure_ascii=True))
 
 
+def cmd_msg(args: argparse.Namespace) -> None:
+    client = build_client(args)
+    data = client.msg(chat_text=args.chat_text)
+    persist(client, args.state_file)
+    print(json.dumps(data, ensure_ascii=True))
+
+
+def cmd_exit(args: argparse.Namespace) -> None:
+    client = build_client(args)
+    data = client.exit(wait_ms=args.wait_ms)
+    persist(client, args.state_file)
+    print(json.dumps(data, ensure_ascii=True))
+
+
 def cmd_leave(args: argparse.Namespace) -> None:
     client = build_client(args)
     data = client.leave()
@@ -95,10 +116,15 @@ def main() -> None:
 
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    s = sub.add_parser("login")
+    s.add_argument("--wait-ms", type=int, default=30000)
+    s.set_defaults(fn=cmd_login)
+
     s = sub.add_parser("join")
     s.set_defaults(fn=cmd_join)
 
     s = sub.add_parser("poll")
+    s.add_argument("--wait-ms", type=int, default=25000)
     s.set_defaults(fn=cmd_poll)
 
     s = sub.add_parser("wait")
@@ -110,6 +136,14 @@ def main() -> None:
     s.add_argument("--move-json", default="")
     s.add_argument("--action-id", default="")
     s.set_defaults(fn=cmd_act)
+
+    s = sub.add_parser("msg")
+    s.add_argument("--chat-text", required=True)
+    s.set_defaults(fn=cmd_msg)
+
+    s = sub.add_parser("exit")
+    s.add_argument("--wait-ms", type=int, default=20000)
+    s.set_defaults(fn=cmd_exit)
 
     s = sub.add_parser("leave")
     s.set_defaults(fn=cmd_leave)

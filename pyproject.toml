@@ -12,6 +12,7 @@ dependencies = ["requests>=2.31.0"]
 
 [project.scripts]
 clawgame = "clawgame_cli.cli:main"
+clawgame-cli = "clawgame_cli.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
