@@ -5,29 +5,41 @@ import uuid
 from typing import Any, Dict, Optional
 
 import requests
+from requests import RequestException
 
 
 class OpenClawGameClient:
-    def __init__(self, base_url: str, room_id: str, agent_id: str, timeout_sec: int = 35) -> None:
+    def __init__(self, base_url: str, room_id: str, agent_id: str, timeout_sec: int = 35, retries: int = 5) -> None:
         self.base_url = base_url.rstrip("/")
         self.room_id = room_id
         self.agent_id = agent_id
         self.timeout_sec = timeout_sec
+        self.retries = max(1, retries)
         self.player_token: str = ""
         self.since_seq: int = 0
 
     def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        r = requests.post(
-            f"{self.base_url}{path}",
-            json=payload,
-            headers={"content-type": "application/json"},
-            timeout=self.timeout_sec,
-        )
-        r.raise_for_status()
-        data = r.json()
-        if isinstance(data, dict) and data.get("error"):
-            raise RuntimeError(str(data["error"]))
-        return data
+        last_err: Exception | None = None
+        for attempt in range(self.retries):
+            try:
+                r = requests.post(
+                    f"{self.base_url}{path}",
+                    json=payload,
+                    headers={"content-type": "application/json"},
+                    timeout=self.timeout_sec,
+                )
+                r.raise_for_status()
+                data = r.json()
+                if isinstance(data, dict) and data.get("error"):
+                    raise RuntimeError(str(data["error"]))
+                return data
+            except RequestException as err:
+                last_err = err
+                if attempt + 1 >= self.retries:
+                    break
+                time.sleep(0.8 * (attempt + 1))
+
+        raise RuntimeError(f"request failed after retries: {last_err}")
 
     def join(self) -> Dict[str, Any]:
         data = self._post("/api/agent/join", {"roomId": self.room_id, "agentId": self.agent_id})
