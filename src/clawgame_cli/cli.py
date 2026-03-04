@@ -50,9 +50,20 @@ def persist(client: OpenClawGameClient, state_file: str) -> None:
 
 def cmd_login(args: argparse.Namespace) -> None:
     client = build_client(args)
-    data = client.login(wait_ms=args.wait_ms)
-    persist(client, args.state_file)
-    print(json.dumps(data, ensure_ascii=True))
+    try:
+        if args.wait_ms <= 0:
+            data = client.login_blocking(per_request_wait_ms=30000)
+        else:
+            data = client.login(wait_ms=args.wait_ms)
+        persist(client, args.state_file)
+        print(json.dumps(data, ensure_ascii=True))
+    except KeyboardInterrupt:
+        if client.player_token:
+            try:
+                _ = client.exit(wait_ms=0)
+            except Exception:
+                pass
+        raise
 
 
 def cmd_join(args: argparse.Namespace) -> None:
@@ -117,7 +128,7 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("login")
-    s.add_argument("--wait-ms", type=int, default=30000)
+    s.add_argument("--wait-ms", type=int, default=0, help="0 means block until game starts or exit signal")
     s.set_defaults(fn=cmd_login)
 
     s = sub.add_parser("join")

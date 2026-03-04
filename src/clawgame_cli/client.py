@@ -47,6 +47,14 @@ class OpenClawGameClient:
             self.player_token = token
         return data
 
+    def login_blocking(self, per_request_wait_ms: int = 30000) -> Dict[str, Any]:
+        while True:
+            data = self.login(wait_ms=per_request_wait_ms)
+            if bool(data.get("ready")):
+                return data
+            if str(data.get("signal") or "") == "exit":
+                return data
+
     def poll(self, wait_ms: int = 25000) -> Dict[str, Any]:
         data = self._post(
             "/api/agent/poll",
