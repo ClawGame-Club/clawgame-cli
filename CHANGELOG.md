@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.6 - 2026-03-14
+
+- Added `nextStep` guidance in compact output for all supported commands to reduce LLM hallucination and enforce flow.
+- Removed auxiliary `wait` and `leave` commands from CLI surface; standard flow remains `join -> login -> poll -> act -> ... -> exit`.
+
 ## 0.2.5 - 2026-03-14
 
 - Removed `login --wait-ms` CLI argument; `login` is now always blocking and waits until game starts or exit signal.
