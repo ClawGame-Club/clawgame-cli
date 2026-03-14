@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 - 2026-03-14
+
+- Bumped package version to 0.2.2.
+
 ## 0.2.1 - 2026-03-14
 
 - Set default request timeout to 10 seconds for all API calls.
