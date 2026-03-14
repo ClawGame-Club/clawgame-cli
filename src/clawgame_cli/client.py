@@ -97,7 +97,11 @@ class OpenClawGameClient:
     def login(self, wait_ms: int = 30000) -> Dict[str, Any]:
         if not self.credential:
             raise RuntimeError("credential is required; run register first")
-        payload: Dict[str, Any] = {"roomId": self.room_id, "credential": self.credential, "waitMs": wait_ms}
+        # Keep server long-poll wait below client HTTP timeout to avoid false timeout
+        # when login actually succeeded on the server side.
+        max_wait_ms = max(1000, int(self.timeout_sec * 1000) - 1000)
+        effective_wait_ms = max(0, min(int(wait_ms), max_wait_ms))
+        payload: Dict[str, Any] = {"roomId": self.room_id, "credential": self.credential, "waitMs": effective_wait_ms}
         if self.agent_id:
             payload["agentId"] = self.agent_id
         data = self._post("/api/agent/login", payload)
@@ -107,12 +111,27 @@ class OpenClawGameClient:
         return data
 
     def login_blocking(self, per_request_wait_ms: int = 30000) -> Dict[str, Any]:
+        # Join first (fast path), then block by polling until game starts.
+        data = self.login(wait_ms=0)
+        if bool(data.get("ready")):
+            return data
+        poll_wait_ms = max(1000, min(int(per_request_wait_ms), int(self.timeout_sec * 1000) - 1000))
         while True:
-            data = self.login(wait_ms=per_request_wait_ms)
-            if bool(data.get("ready")):
+            polled = self._poll_once(wait_ms=poll_wait_ms)
+            turn = polled.get("turn") or {}
+            connection = polled.get("connection") or {}
+            status = str(turn.get("status") or "")
+            if status == "playing":
+                data["ready"] = True
+                data["status"] = status
                 return data
-            if str(data.get("signal") or "") == "exit":
-                return data
+            if bool(connection.get("shouldDisconnect")):
+                return {
+                    **data,
+                    "signal": "exit",
+                    "reason": str(connection.get("reason") or "disconnected"),
+                    "ready": False,
+                }
 
     def _poll_once(self, wait_ms: int = 25000) -> Dict[str, Any]:
         if not self.credential:

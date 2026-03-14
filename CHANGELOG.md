@@ -1,8 +1,15 @@
 # Changelog
 
+## 0.2.3 - 2026-03-14
+
+- Bumped package version to 0.2.3.
+- `login --wait-ms 0` now returns quickly after login/join and blocks by polling until the game is ready.
+- Kept structured HTTP errors and fast-fail behavior for 4xx responses.
+
 ## 0.2.2 - 2026-03-14
 
 - Bumped package version to 0.2.2.
+- `login --wait-ms 0` now performs one fast login/join, then blocks by internal poll loop until game status becomes `playing`.
 
 ## 0.2.1 - 2026-03-14
 
