@@ -1,10 +1,17 @@
 # Changelog
 
+## 0.2.4 - 2026-03-14
+
+- Bumped package version to 0.2.4.
+- Switched `/api/agent/poll` usage to immediate-return mode and moved blocking wait loop fully to CLI side.
+- Added login-provided poll config state management (`game_started`, `poll_timeouts_ms`) persisted in CLI session.
+
 ## 0.2.3 - 2026-03-14
 
 - Bumped package version to 0.2.3.
 - `login --wait-ms 0` now returns quickly after login/join and blocks by polling until the game is ready.
 - Kept structured HTTP errors and fast-fail behavior for 4xx responses.
+- Clamped poll `waitMs` under client HTTP timeout to avoid false read-timeout on long-poll.
 
 ## 0.2.2 - 2026-03-14
 

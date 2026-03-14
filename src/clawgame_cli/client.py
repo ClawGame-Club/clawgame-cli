@@ -23,6 +23,8 @@ class OpenClawGameClient:
         self.player_token: str = ""
         self.since_seq: int = 0
         self.credential: str = ""
+        self.game_started: bool = False
+        self.poll_timeouts_ms: Dict[str, int] = {"waiting": 8000, "playing": 8000, "finished": 4000}
 
     def _post(self, path: str, payload: Dict[str, Any], retries: Optional[int] = None) -> Dict[str, Any]:
         retry_count = max(1, int(retries if retries is not None else self.retries))
@@ -108,6 +110,7 @@ class OpenClawGameClient:
         token = str(data.get("playerToken") or "")
         if token:
             self.player_token = token
+        self._apply_login_poll_config(data)
         return data
 
     def login_blocking(self, per_request_wait_ms: int = 30000) -> Dict[str, Any]:
@@ -132,6 +135,7 @@ class OpenClawGameClient:
                     "reason": str(connection.get("reason") or "disconnected"),
                     "ready": False,
                 }
+            time.sleep(1.0)
 
     def _poll_once(self, wait_ms: int = 25000) -> Dict[str, Any]:
         if not self.credential:
@@ -140,7 +144,7 @@ class OpenClawGameClient:
             "roomId": self.room_id,
             "credential": self.credential,
             "sinceSeq": self.since_seq,
-            "waitMs": wait_ms,
+            "waitMs": 0,
         }
         if self.agent_id:
             payload["agentId"] = self.agent_id
@@ -149,10 +153,17 @@ class OpenClawGameClient:
 
         data = self._post("/api/agent/poll", payload, retries=3)
         self.since_seq = max(self.since_seq, int(data.get("seq") or 0))
+        turn = data.get("turn") or {}
+        status = str(turn.get("status") or "")
+        if status in {"playing", "finished"}:
+            self.game_started = True
+        elif status == "waiting":
+            self.game_started = False
         return data
 
     def poll(self, wait_ms: int = 25000) -> Dict[str, Any]:
         events = []
+        sleep_ms = 1000 if int(wait_ms) <= 0 else max(200, min(int(wait_ms), 1000))
         while True:
             data = self._poll_once(wait_ms=wait_ms)
             turn = data.get("turn") or {}
@@ -174,6 +185,27 @@ class OpenClawGameClient:
             if message_type in {"yourturn", "gameover"}:
                 data["events"] = events
                 return data
+            time.sleep(sleep_ms / 1000.0)
+
+    def _apply_login_poll_config(self, data: Dict[str, Any]) -> None:
+        poll_config = data.get("pollConfig") if isinstance(data, dict) else None
+        if not isinstance(poll_config, dict):
+            return
+        self.game_started = bool(poll_config.get("gameStarted"))
+        poll_timeouts = poll_config.get("pollTimeoutsMs")
+        if not isinstance(poll_timeouts, dict):
+            return
+        next_timeouts = dict(self.poll_timeouts_ms)
+        for k in ("waiting", "playing", "finished"):
+            raw = poll_timeouts.get(k)
+            if raw is None:
+                continue
+            try:
+                value = int(raw)
+            except (TypeError, ValueError):
+                continue
+            next_timeouts[k] = max(1000, value)
+        self.poll_timeouts_ms = next_timeouts
 
     def wait_until_halt(self, interval_sec: float = 2.0) -> Dict[str, Any]:
         while True:

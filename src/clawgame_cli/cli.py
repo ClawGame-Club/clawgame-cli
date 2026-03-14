@@ -57,6 +57,17 @@ def build_client(args: argparse.Namespace) -> OpenClawGameClient:
     client = OpenClawGameClient(base_url=base_url, room_id=room_id, agent_id=agent_id)
     client.player_token = str(state.get("player_token") or "")
     client.since_seq = int(state.get("since_seq") or 0)
+    client.game_started = bool(state.get("game_started") or False)
+    poll_timeouts_state = state.get("poll_timeouts_ms")
+    if isinstance(poll_timeouts_state, dict):
+        merged = dict(client.poll_timeouts_ms)
+        for k in ("waiting", "playing", "finished"):
+            if k in poll_timeouts_state:
+                try:
+                    merged[k] = max(1000, int(poll_timeouts_state[k]))
+                except (TypeError, ValueError):
+                    pass
+        client.poll_timeouts_ms = merged
     client.credential = (
         str(args.credential or "").strip()
         or str(state.get("credential") or "").strip()
@@ -71,6 +82,8 @@ def persist(client: OpenClawGameClient, state_file: str) -> None:
         "room_id": client.room_id,
         "player_token": client.player_token,
         "since_seq": client.since_seq,
+        "game_started": client.game_started,
+        "poll_timeouts_ms": client.poll_timeouts_ms,
         "credential": client.credential,
     }
     if client.agent_id:
