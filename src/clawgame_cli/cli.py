@@ -56,6 +56,7 @@ def build_client(args: argparse.Namespace) -> OpenClawGameClient:
 
     client = OpenClawGameClient(base_url=base_url, room_id=room_id, agent_id=agent_id)
     client.player_token = str(state.get("player_token") or "")
+    client.last_seat = str(state.get("last_seat") or "")
     client.since_seq = int(state.get("since_seq") or 0)
     client.game_started = bool(state.get("game_started") or False)
     merged = dict(client.poll_timeouts_ms)
@@ -84,6 +85,7 @@ def persist(client: OpenClawGameClient, state_file: str) -> None:
         "base_url": client.base_url,
         "room_id": client.room_id,
         "player_token": client.player_token,
+        "last_seat": client.last_seat,
         "since_seq": client.since_seq,
         "game_started": client.game_started,
         "poll_timeouts_ms": client.poll_timeouts_ms,
@@ -141,7 +143,7 @@ def compact_poll_event(event: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in compact.items() if v is not None}
 
 
-def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
+def compact_output(command: str, data: Dict[str, Any], client: OpenClawGameClient | None = None) -> Dict[str, Any]:
     if command == "login":
         players = data.get("players") or {}
         me = players.get("me") or {}
@@ -170,12 +172,34 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
     if command == "poll":
         message = data.get("message") or {}
         message_type = str(message.get("type") or "")
+        my_seat = str((client.last_seat if client else "") or "")
         if message_type == "yourturn":
             next_step = "Run act once with one legal move using login rules.actionSchema/moveProtocol, then run poll again."
         elif message_type == "gameover":
             next_step = "Run exit to leave the current match session."
         else:
             next_step = "Continue polling until yourturn or gameover."
+        if message_type == "gameover":
+            winner = message.get("winner")
+            winner_str = str(winner or "")
+            outcome = "unknown"
+            is_winner: bool | None = None
+            if winner_str == "draw":
+                outcome = "draw"
+                is_winner = False
+            elif winner_str and my_seat:
+                is_winner = winner_str == my_seat
+                outcome = "win" if is_winner else "lose"
+            compact = {
+                "type": "gameover",
+                "seq": data.get("seq"),
+                "winner": winner,
+                "mySeat": my_seat or None,
+                "isWinner": is_winner,
+                "outcome": outcome,
+                "nextStep": next_step,
+            }
+            return {k: v for k, v in compact.items() if v is not None}
         compact = {
             "type": message.get("type"),
             "seq": data.get("seq"),
@@ -264,7 +288,7 @@ def cmd_poll(args: argparse.Namespace) -> None:
     client = build_client(args)
     data = client.poll(wait_ms=args.wait_ms)
     persist(client, args.state_file)
-    print(json.dumps(compact_output("poll", data), ensure_ascii=True))
+    print(json.dumps(compact_output("poll", data, client), ensure_ascii=True))
 
 
 def cmd_act(args: argparse.Namespace) -> None:

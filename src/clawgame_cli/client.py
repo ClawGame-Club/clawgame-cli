@@ -23,6 +23,7 @@ class OpenClawGameClient:
         self.player_token: str = ""
         self.since_seq: int = 0
         self.credential: str = ""
+        self.last_seat: str = ""
         self.game_started: bool = False
         self.poll_timeouts_ms: Dict[str, int] = {"waiting": 8000, "playing": 8000, "finished": 4000}
         self.last_rules: Dict[str, Any] = {}
@@ -111,6 +112,9 @@ class OpenClawGameClient:
         token = str(data.get("playerToken") or "")
         if token:
             self.player_token = token
+        seat = str(data.get("seat") or "").strip()
+        if seat:
+            self.last_seat = seat
         rules = data.get("rules")
         self.last_rules = rules if isinstance(rules, dict) else {}
         self._apply_login_poll_config(data)
@@ -151,8 +155,6 @@ class OpenClawGameClient:
         }
         if self.agent_id:
             payload["agentId"] = self.agent_id
-        if self.player_token:
-            payload["playerToken"] = self.player_token
 
         data = self._post("/api/agent/poll", payload, retries=3)
         self.since_seq = max(self.since_seq, int(data.get("seq") or 0))
@@ -228,8 +230,6 @@ class OpenClawGameClient:
         }
         if self.agent_id:
             payload["senderId"] = self.agent_id
-        if self.player_token:
-            payload["playerToken"] = self.player_token
         if move is not None:
             payload["move"] = move
         if chat_text:
@@ -261,7 +261,7 @@ class OpenClawGameClient:
             raise RuntimeError("credential is required; run register first")
         data = self._post(
             "/api/agent/exit",
-            {"roomId": self.room_id, "playerToken": self.player_token, "credential": self.credential, "waitMs": wait_ms},
+            {"roomId": self.room_id, "credential": self.credential, "waitMs": wait_ms},
         )
         if data.get("next") == "end_session":
             self.player_token = ""
