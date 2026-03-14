@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.8 - 2026-03-14
+
+- `login` compact output now includes `rules` and `actionProtocol` so LLM can read the move protocol before acting.
+- Strengthened `login`/`poll` next-step hints to explicitly require reading `rules.actionSchema`/`rules.moveProtocol`.
+- Persisted `last_rules` into CLI state for better continuity across commands.
+- Fixed state loading path so missing `poll_timeouts_ms` no longer causes local variable errors.
+
 ## 0.2.7 - 2026-03-14
 
 - Removed `join` command from CLI surface; flow is now strictly `login -> poll -> act -> ... -> exit`.

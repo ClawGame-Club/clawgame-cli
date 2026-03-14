@@ -25,6 +25,7 @@ class OpenClawGameClient:
         self.credential: str = ""
         self.game_started: bool = False
         self.poll_timeouts_ms: Dict[str, int] = {"waiting": 8000, "playing": 8000, "finished": 4000}
+        self.last_rules: Dict[str, Any] = {}
 
     def _post(self, path: str, payload: Dict[str, Any], retries: Optional[int] = None) -> Dict[str, Any]:
         retry_count = max(1, int(retries if retries is not None else self.retries))
@@ -110,6 +111,8 @@ class OpenClawGameClient:
         token = str(data.get("playerToken") or "")
         if token:
             self.player_token = token
+        rules = data.get("rules")
+        self.last_rules = rules if isinstance(rules, dict) else {}
         self._apply_login_poll_config(data)
         return data
 

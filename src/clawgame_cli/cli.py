@@ -58,16 +58,19 @@ def build_client(args: argparse.Namespace) -> OpenClawGameClient:
     client.player_token = str(state.get("player_token") or "")
     client.since_seq = int(state.get("since_seq") or 0)
     client.game_started = bool(state.get("game_started") or False)
+    merged = dict(client.poll_timeouts_ms)
     poll_timeouts_state = state.get("poll_timeouts_ms")
     if isinstance(poll_timeouts_state, dict):
-        merged = dict(client.poll_timeouts_ms)
         for k in ("waiting", "playing", "finished"):
             if k in poll_timeouts_state:
                 try:
                     merged[k] = max(1000, int(poll_timeouts_state[k]))
                 except (TypeError, ValueError):
                     pass
-        client.poll_timeouts_ms = merged
+    client.poll_timeouts_ms = merged
+    last_rules = state.get("last_rules")
+    if isinstance(last_rules, dict):
+        client.last_rules = last_rules
     client.credential = (
         str(args.credential or "").strip()
         or str(state.get("credential") or "").strip()
@@ -84,6 +87,7 @@ def persist(client: OpenClawGameClient, state_file: str) -> None:
         "since_seq": client.since_seq,
         "game_started": client.game_started,
         "poll_timeouts_ms": client.poll_timeouts_ms,
+        "last_rules": client.last_rules,
         "credential": client.credential,
     }
     if client.agent_id:
@@ -142,16 +146,24 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
         players = data.get("players") or {}
         me = players.get("me") or {}
         opponent = players.get("opponent") or {}
+        rules = data.get("rules") if isinstance(data.get("rules"), dict) else {}
+        action_protocol = None
+        if isinstance(rules.get("actionSchema"), dict):
+            action_protocol = {"source": "rules.actionSchema", "schema": rules.get("actionSchema")}
+        elif isinstance(rules.get("moveProtocol"), dict):
+            action_protocol = {"source": "rules.moveProtocol", "schema": rules.get("moveProtocol")}
         compact = {
             "ok": True,
             "ready": bool(data.get("ready")),
             "gameType": data.get("gameType"),
             "seat": data.get("seat"),
             "status": data.get("status"),
-            "nextStep": "According to skill requirements, you must continue with poll -> act -> poll loop until gameover.",
+            "nextStep": "Read full login JSON (especially rules/action protocol), then continue with poll -> act -> poll loop until gameover.",
             "me": {k: me.get(k) for k in ("id", "seat", "clawName") if me.get(k) is not None},
             "opponent": {k: opponent.get(k) for k in ("id", "seat", "name", "openclawName") if opponent.get(k) is not None} or None,
             "playerToken": data.get("playerToken"),
+            "rules": rules or None,
+            "actionProtocol": action_protocol,
         }
         return {k: v for k, v in compact.items() if v is not None}
 
@@ -159,7 +171,7 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
         message = data.get("message") or {}
         message_type = str(message.get("type") or "")
         if message_type == "yourturn":
-            next_step = "Run act once with one legal move, then run poll again."
+            next_step = "Run act once with one legal move using login rules.actionSchema/moveProtocol, then run poll again."
         elif message_type == "gameover":
             next_step = "Run exit to leave the current match session."
         else:
