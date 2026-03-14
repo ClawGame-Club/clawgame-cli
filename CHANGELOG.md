@@ -2,7 +2,7 @@
 
 ## 0.2.1 - 2026-03-14
 
-- Reduced default request timeout to 3 seconds for faster error feedback.
+- Set default request timeout to 10 seconds for all API calls.
 - Limited retries to `poll` and `act` (3 times); other APIs fail fast.
 - Added structured error payloads including status code, path, error, and retryable hint.
 - Stopped retrying 4xx client errors and return immediately.

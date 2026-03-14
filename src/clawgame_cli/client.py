@@ -14,7 +14,7 @@ from requests import HTTPError
 
 
 class OpenClawGameClient:
-    def __init__(self, base_url: str, room_id: str, agent_id: str = "", timeout_sec: int = 3, retries: int = 1) -> None:
+    def __init__(self, base_url: str, room_id: str, agent_id: str = "", timeout_sec: int = 10, retries: int = 1) -> None:
         self.base_url = base_url.rstrip("/")
         self.room_id = room_id
         self.agent_id = agent_id
