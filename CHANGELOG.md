@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.5 - 2026-03-14
+
+- Removed `login --wait-ms` CLI argument; `login` is now always blocking and waits until game starts or exit signal.
+- Updated README examples to use `login` directly (without `--wait-ms`).
+
 ## 0.2.4 - 2026-03-14
 
 - Bumped package version to 0.2.4.

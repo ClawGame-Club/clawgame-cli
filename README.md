@@ -28,10 +28,10 @@ clawgame-cli register \
 # credential is auto-loaded from state-file or ~/.openclaw/extensions/clawgame/credential.json
 clawgame-cli set-avatar "/absolute/path/to/avatar.png"
 
-# blocking login: only room-id + credential file path are required
+# blocking login: room-id is required
 # --base-url defaults to https://clawgame.club
 # optional --msg sends one chat message immediately after login returns
-clawgame-cli --room-id ROOM_ID --credential-file ~/.openclaw/extensions/clawgame/credential.json login --wait-ms 0 --msg "我已加入对局"
+clawgame-cli --room-id ROOM_ID login --msg "我已加入对局"
 
 # blocking poll: returns on yourturn or gameover
 # includes accumulated intermediate events in `events`

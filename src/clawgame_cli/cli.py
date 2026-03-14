@@ -230,10 +230,7 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
 def cmd_login(args: argparse.Namespace) -> None:
     client = build_client(args)
     try:
-        if args.wait_ms <= 0:
-            data = client.login_blocking(per_request_wait_ms=30000)
-        else:
-            data = client.login(wait_ms=args.wait_ms)
+        data = client.login_blocking(per_request_wait_ms=30000)
 
         login_msg = (args.msg or "").strip()
         is_exit_signal = str(data.get("signal") or "") == "exit"
@@ -353,7 +350,6 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("login")
-    s.add_argument("--wait-ms", type=int, default=0, help="0 means block until game starts or exit signal")
     s.add_argument("--msg", default="", help="optional chat message sent automatically after login returns")
     s.set_defaults(fn=cmd_login)
 
