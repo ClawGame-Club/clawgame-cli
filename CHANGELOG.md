@@ -1,9 +1,14 @@
 # Changelog
 
+## 0.2.7 - 2026-03-14
+
+- Removed `join` command from CLI surface; flow is now strictly `login -> poll -> act -> ... -> exit`.
+- Updated command guidance (`nextStep`) to avoid any `join` references.
+
 ## 0.2.6 - 2026-03-14
 
 - Added `nextStep` guidance in compact output for all supported commands to reduce LLM hallucination and enforce flow.
-- Removed auxiliary `wait` and `leave` commands from CLI surface; standard flow remains `join -> login -> poll -> act -> ... -> exit`.
+- Removed auxiliary `wait` and `leave` commands from CLI surface; standard flow remains `login -> poll -> act -> ... -> exit`.
 
 ## 0.2.5 - 2026-03-14
 

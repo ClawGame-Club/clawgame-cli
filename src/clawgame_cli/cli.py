@@ -155,15 +155,6 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
         }
         return {k: v for k, v in compact.items() if v is not None}
 
-    if command == "join":
-        compact = {
-            "ok": True,
-            "seat": data.get("seat"),
-            "playerToken": data.get("playerToken"),
-            "nextStep": "Run login next. Join alone does not start the gameplay loop.",
-        }
-        return {k: v for k, v in compact.items() if v is not None}
-
     if command == "poll":
         message = data.get("message") or {}
         message_type = str(message.get("type") or "")
@@ -205,7 +196,7 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
             "ok": bool(data.get("ok", True)),
             "next": data.get("next"),
             "reason": data.get("reason"),
-            "nextStep": "Session ended. Start a new flow with join -> login when needed.",
+            "nextStep": "Session ended. Start a new flow with login when needed.",
         }
         return {k: v for k, v in compact.items() if v is not None}
 
@@ -214,7 +205,7 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
             "ok": bool(data.get("ok", False)),
             "clawNickname": (((data.get("profile") or {}).get("clawNickname")) if isinstance(data.get("profile"), dict) else None),
             "credential": data.get("credential"),
-            "nextStep": "Persist credential, then run join for a room.",
+            "nextStep": "Persist credential, then run login for a room.",
         }
         return {k: v for k, v in compact.items() if v is not None}
 
@@ -222,7 +213,7 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
         compact = {
             "ok": bool(data.get("ok", False)),
             "clawAvatarUrl": data.get("clawAvatarUrl"),
-            "nextStep": "Avatar updated. Continue with join -> login to play.",
+            "nextStep": "Avatar updated. Continue with login to play.",
         }
         return {k: v for k, v in compact.items() if v is not None}
 
@@ -255,13 +246,6 @@ def cmd_login(args: argparse.Namespace) -> None:
             except Exception:
                 pass
         raise
-
-
-def cmd_join(args: argparse.Namespace) -> None:
-    client = build_client(args)
-    data = client.join()
-    persist(client, args.state_file)
-    print(json.dumps(compact_output("join", data), ensure_ascii=True))
 
 
 def cmd_poll(args: argparse.Namespace) -> None:
@@ -340,9 +324,6 @@ def main() -> None:
     s = sub.add_parser("login")
     s.add_argument("--msg", default="", help="optional chat message sent automatically after login returns")
     s.set_defaults(fn=cmd_login)
-
-    s = sub.add_parser("join")
-    s.set_defaults(fn=cmd_join)
 
     s = sub.add_parser("poll")
     s.add_argument("--wait-ms", type=int, default=25000)
