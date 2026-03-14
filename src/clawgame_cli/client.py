@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 import uuid
 import base64
@@ -9,10 +10,11 @@ from typing import Any, Dict, Optional
 
 import requests
 from requests import RequestException
+from requests import HTTPError
 
 
 class OpenClawGameClient:
-    def __init__(self, base_url: str, room_id: str, agent_id: str = "", timeout_sec: int = 35, retries: int = 5) -> None:
+    def __init__(self, base_url: str, room_id: str, agent_id: str = "", timeout_sec: int = 3, retries: int = 1) -> None:
         self.base_url = base_url.rstrip("/")
         self.room_id = room_id
         self.agent_id = agent_id
@@ -22,9 +24,10 @@ class OpenClawGameClient:
         self.since_seq: int = 0
         self.credential: str = ""
 
-    def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _post(self, path: str, payload: Dict[str, Any], retries: Optional[int] = None) -> Dict[str, Any]:
+        retry_count = max(1, int(retries if retries is not None else self.retries))
         last_err: Exception | None = None
-        for attempt in range(self.retries):
+        for attempt in range(retry_count):
             try:
                 r = requests.post(
                     f"{self.base_url}{path}",
@@ -37,13 +40,46 @@ class OpenClawGameClient:
                 if isinstance(data, dict) and data.get("error"):
                     raise RuntimeError(str(data["error"]))
                 return data
+            except HTTPError as err:
+                last_err = err
+                status_code = int(err.response.status_code) if err.response is not None else None
+                server_error = ""
+                response_body: Any = None
+                if err.response is not None:
+                    try:
+                        response_body = err.response.json()
+                        if isinstance(response_body, dict):
+                            server_error = str(response_body.get("error") or "")
+                    except ValueError:
+                        response_body = err.response.text
+                detail = {
+                    "type": "http_error",
+                    "path": path,
+                    "statusCode": status_code,
+                    "error": server_error or str(err),
+                    "retryable": bool(status_code is None or status_code >= 500),
+                    "body": response_body,
+                }
+                # Client-side request errors (4xx) should fail fast.
+                if status_code is not None and 400 <= status_code < 500:
+                    raise RuntimeError(json.dumps(detail, ensure_ascii=True))
+                if attempt + 1 >= retry_count:
+                    raise RuntimeError(json.dumps(detail, ensure_ascii=True))
+                time.sleep(0.8 * (attempt + 1))
             except RequestException as err:
                 last_err = err
-                if attempt + 1 >= self.retries:
+                if attempt + 1 >= retry_count:
                     break
                 time.sleep(0.8 * (attempt + 1))
 
-        raise RuntimeError(f"request failed after retries: {last_err}")
+        detail = {
+            "type": "request_exception",
+            "path": path,
+            "statusCode": None,
+            "error": str(last_err) if last_err else "unknown request error",
+            "retryable": True,
+        }
+        raise RuntimeError(json.dumps(detail, ensure_ascii=True))
 
     def join(self) -> Dict[str, Any]:
         if not self.credential:
@@ -92,7 +128,7 @@ class OpenClawGameClient:
         if self.player_token:
             payload["playerToken"] = self.player_token
 
-        data = self._post("/api/agent/poll", payload)
+        data = self._post("/api/agent/poll", payload, retries=3)
         self.since_seq = max(self.since_seq, int(data.get("seq") or 0))
         return data
 
@@ -152,7 +188,7 @@ class OpenClawGameClient:
             generated_action_id = f"{self.room_id}-{self.since_seq}-{self.agent_id}-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
         payload["actionId"] = generated_action_id
 
-        return self._post("/api/agent/act", payload)
+        return self._post("/api/agent/act", payload, retries=3)
 
     def msg(self, chat_text: str) -> Dict[str, Any]:
         if not chat_text.strip():
