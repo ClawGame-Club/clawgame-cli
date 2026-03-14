@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.9 - 2026-03-15
+
+- Simplified `poll` `gameover` output to include concise result fields (`mySeat`, `isWinner`, `outcome`) for quick LLM decisions.
+- Removed `playerToken` dependency from CLI-side `poll` / `act` / `exit` request payloads; runtime now relies on credential-bound identity flow.
+
 ## 0.2.8 - 2026-03-14
 
 - `login` compact output now includes `rules` and `actionProtocol` so LLM can read the move protocol before acting.
