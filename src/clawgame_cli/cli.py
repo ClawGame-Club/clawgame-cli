@@ -148,6 +148,7 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
             "gameType": data.get("gameType"),
             "seat": data.get("seat"),
             "status": data.get("status"),
+            "nextStep": "According to skill requirements, you must continue with poll -> act -> poll loop until gameover.",
             "me": {k: me.get(k) for k in ("id", "seat", "clawName") if me.get(k) is not None},
             "opponent": {k: opponent.get(k) for k in ("id", "seat", "name", "openclawName") if opponent.get(k) is not None} or None,
             "playerToken": data.get("playerToken"),
@@ -159,15 +160,24 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
             "ok": True,
             "seat": data.get("seat"),
             "playerToken": data.get("playerToken"),
+            "nextStep": "Run login next. Join alone does not start the gameplay loop.",
         }
         return {k: v for k, v in compact.items() if v is not None}
 
     if command == "poll":
         message = data.get("message") or {}
+        message_type = str(message.get("type") or "")
+        if message_type == "yourturn":
+            next_step = "Run act once with one legal move, then run poll again."
+        elif message_type == "gameover":
+            next_step = "Run exit to leave the current match session."
+        else:
+            next_step = "Continue polling until yourturn or gameover."
         compact = {
             "type": message.get("type"),
             "seq": data.get("seq"),
             "events": [compact_poll_event(event) for event in data.get("events") or []],
+            "nextStep": next_step,
         }
         if message.get("type") in {"yourturn", "gameover"}:
             compact["state"] = compact_snapshot_state(message.get("state") or {})
@@ -177,35 +187,25 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
             compact["status"] = message.get("status")
         return {k: v for k, v in compact.items() if v is not None}
 
-    if command == "wait":
-        message = data.get("message") or {}
-        compact = {
-            "type": message.get("type"),
-            "seq": data.get("seq"),
-            "yourTurn": bool((data.get("turn") or {}).get("yourTurn")),
-            "gameOver": bool((data.get("turn") or {}).get("gameOver")),
-        }
-        if message.get("type") in {"yourturn", "gameover"}:
-            compact["state"] = compact_snapshot_state(message.get("state") or {})
-        return {k: v for k, v in compact.items() if v is not None}
-
     if command == "act":
         move = data.get("move") or {}
         compact = {
             "ok": True,
             "actionId": data.get("actionId"),
             "state": compact_snapshot_state(move),
+            "nextStep": "Run poll next. Do not act again until poll returns yourturn.",
         }
         return {k: v for k, v in compact.items() if v is not None}
 
     if command == "msg":
-        return {"ok": True}
+        return {"ok": True, "nextStep": "Run poll to continue game loop, or act only if poll says yourturn."}
 
-    if command in {"exit", "leave"}:
+    if command == "exit":
         compact = {
             "ok": bool(data.get("ok", True)),
             "next": data.get("next"),
             "reason": data.get("reason"),
+            "nextStep": "Session ended. Start a new flow with join -> login when needed.",
         }
         return {k: v for k, v in compact.items() if v is not None}
 
@@ -214,6 +214,7 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
             "ok": bool(data.get("ok", False)),
             "clawNickname": (((data.get("profile") or {}).get("clawNickname")) if isinstance(data.get("profile"), dict) else None),
             "credential": data.get("credential"),
+            "nextStep": "Persist credential, then run join for a room.",
         }
         return {k: v for k, v in compact.items() if v is not None}
 
@@ -221,6 +222,7 @@ def compact_output(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
         compact = {
             "ok": bool(data.get("ok", False)),
             "clawAvatarUrl": data.get("clawAvatarUrl"),
+            "nextStep": "Avatar updated. Continue with join -> login to play.",
         }
         return {k: v for k, v in compact.items() if v is not None}
 
@@ -269,13 +271,6 @@ def cmd_poll(args: argparse.Namespace) -> None:
     print(json.dumps(compact_output("poll", data), ensure_ascii=True))
 
 
-def cmd_wait(args: argparse.Namespace) -> None:
-    client = build_client(args)
-    data = client.wait_until_halt(interval_sec=args.interval_sec)
-    persist(client, args.state_file)
-    print(json.dumps(compact_output("wait", data), ensure_ascii=True))
-
-
 def cmd_act(args: argparse.Namespace) -> None:
     client = build_client(args)
     move = None
@@ -298,13 +293,6 @@ def cmd_exit(args: argparse.Namespace) -> None:
     data = client.exit(wait_ms=args.wait_ms)
     persist(client, args.state_file)
     print(json.dumps(compact_output("exit", data), ensure_ascii=True))
-
-
-def cmd_leave(args: argparse.Namespace) -> None:
-    client = build_client(args)
-    data = client.leave()
-    persist(client, args.state_file)
-    print(json.dumps(compact_output("leave", data), ensure_ascii=True))
 
 
 def cmd_register(args: argparse.Namespace) -> None:
@@ -360,10 +348,6 @@ def main() -> None:
     s.add_argument("--wait-ms", type=int, default=25000)
     s.set_defaults(fn=cmd_poll)
 
-    s = sub.add_parser("wait")
-    s.add_argument("--interval-sec", type=float, default=2.0)
-    s.set_defaults(fn=cmd_wait)
-
     s = sub.add_parser("act")
     s.add_argument("--chat-text", default="")
     s.add_argument("--move-json", default="")
@@ -377,9 +361,6 @@ def main() -> None:
     s = sub.add_parser("exit")
     s.add_argument("--wait-ms", type=int, default=20000)
     s.set_defaults(fn=cmd_exit)
-
-    s = sub.add_parser("leave")
-    s.set_defaults(fn=cmd_leave)
 
     s = sub.add_parser("register")
     s.add_argument("--name", required=True, help="OpenClaw display name")
