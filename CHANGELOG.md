@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.11 - 2026-03-15
+
+- Added `protocolHint` to compact `login` output and repeated it on `poll` when `type = "yourturn"`, so agents can still see the legal move format immediately before the first act.
+
 ## 0.2.10 - 2026-03-15
 
 - Updated room-skill loop guidance so mid-game reports are allowed, but agents must immediately return to the `poll -> act -> poll` loop after each report.

@@ -143,6 +143,35 @@ def compact_poll_event(event: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in compact.items() if v is not None}
 
 
+def protocol_hint_from_rules(rules: Dict[str, Any]) -> str | None:
+    if not isinstance(rules, dict) or not rules:
+        return None
+    action_schema = rules.get("actionSchema")
+    if isinstance(action_schema, dict):
+        example = action_schema.get("example")
+        payload = action_schema.get("payload")
+        parts = ["Follow rules.actionSchema exactly."]
+        if isinstance(payload, dict) and payload:
+            parts.append(f"Payload: {json.dumps(payload, ensure_ascii=True)}.")
+        if example is not None:
+            parts.append(f"Example: {json.dumps(example, ensure_ascii=True)}.")
+        return " ".join(parts)
+    move_protocol = rules.get("moveProtocol")
+    if isinstance(move_protocol, dict):
+        fmt = move_protocol.get("format")
+        example = move_protocol.get("example")
+        notes = move_protocol.get("notes")
+        parts = ["Follow rules.moveProtocol exactly."]
+        if fmt is not None:
+            parts.append(f"Format: {json.dumps(fmt, ensure_ascii=True)}.")
+        if example is not None:
+            parts.append(f"Example: {json.dumps(example, ensure_ascii=True)}.")
+        if isinstance(notes, list) and notes:
+            parts.append(f"Notes: {' '.join(str(note) for note in notes if str(note).strip())}")
+        return " ".join(parts)
+    return None
+
+
 def compact_output(command: str, data: Dict[str, Any], client: OpenClawGameClient | None = None) -> Dict[str, Any]:
     if command == "login":
         players = data.get("players") or {}
@@ -154,6 +183,7 @@ def compact_output(command: str, data: Dict[str, Any], client: OpenClawGameClien
             action_protocol = {"source": "rules.actionSchema", "schema": rules.get("actionSchema")}
         elif isinstance(rules.get("moveProtocol"), dict):
             action_protocol = {"source": "rules.moveProtocol", "schema": rules.get("moveProtocol")}
+        protocol_hint = protocol_hint_from_rules(rules)
         compact = {
             "ok": True,
             "ready": bool(data.get("ready")),
@@ -166,6 +196,7 @@ def compact_output(command: str, data: Dict[str, Any], client: OpenClawGameClien
             "playerToken": data.get("playerToken"),
             "rules": rules or None,
             "actionProtocol": action_protocol,
+            "protocolHint": protocol_hint,
         }
         return {k: v for k, v in compact.items() if v is not None}
 
@@ -173,6 +204,8 @@ def compact_output(command: str, data: Dict[str, Any], client: OpenClawGameClien
         message = data.get("message") or {}
         message_type = str(message.get("type") or "")
         my_seat = str((client.last_seat if client else "") or "")
+        rules = client.last_rules if client and isinstance(client.last_rules, dict) else {}
+        protocol_hint = protocol_hint_from_rules(rules)
         if message_type == "yourturn":
             next_step = "Run act once with one legal move using login rules.actionSchema/moveProtocol, then run poll again."
         elif message_type == "gameover":
@@ -206,6 +239,8 @@ def compact_output(command: str, data: Dict[str, Any], client: OpenClawGameClien
             "events": [compact_poll_event(event) for event in data.get("events") or []],
             "nextStep": next_step,
         }
+        if message_type == "yourturn" and protocol_hint:
+            compact["protocolHint"] = protocol_hint
         if message.get("type") in {"yourturn", "gameover"}:
             compact["state"] = compact_snapshot_state(message.get("state") or {})
         if message.get("winner") is not None:
