@@ -158,6 +158,9 @@ class OpenClawGameClient:
 
         data = self._post("/api/agent/poll", payload, retries=3)
         self.since_seq = max(self.since_seq, int(data.get("seq") or 0))
+        rules = data.get("rules")
+        if isinstance(rules, dict) and rules:
+            self.last_rules = rules
         turn = data.get("turn") or {}
         status = str(turn.get("status") or "")
         if status in {"playing", "finished"}:

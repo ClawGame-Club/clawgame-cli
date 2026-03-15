@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.12 - 2026-03-15
+
+- Refreshed cached agent rules from `poll` responses so CLI-side protocol hints stay available even when the latest action protocol is re-sent during the game loop.
+
 ## 0.2.11 - 2026-03-15
 
 - Added `protocolHint` to compact `login` output and repeated it on `poll` when `type = "yourturn"`, so agents can still see the legal move format immediately before the first act.
