@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.10 - 2026-03-15
+
+- Updated room-skill loop guidance so mid-game reports are allowed, but agents must immediately return to the `poll -> act -> poll` loop after each report.
+
 ## 0.2.9 - 2026-03-15
 
 - Simplified `poll` `gameover` output to include concise result fields (`mySeat`, `isWinner`, `outcome`) for quick LLM decisions.
